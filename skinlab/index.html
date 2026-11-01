@@ -98,6 +98,11 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 .box .hd h3{font-size:16px;margin-right:auto}
 .box .hd input,.box .hd select{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px 10px;width:110px}
 .box .hd input.s{width:150px}
+.shopbtn{width:36px;height:36px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-size:16px}
+.shopbtn.on{background:var(--acc);border-color:var(--acc)}
+.card .buy{position:absolute;left:6px;right:6px;bottom:8px;z-index:2;background:var(--acc);border-radius:7px;padding:4px 0;font-size:11px;font-weight:700;text-align:center;opacity:0;transition:.15s}
+.card:hover .buy{opacity:1}
+.card.poor{opacity:.45}
 .scroll{max-height:470px;overflow:auto;padding-right:4px}
 .empty{color:var(--mut);text-align:center;padding:40px 10px;font-size:13px}
 
@@ -232,7 +237,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
           <div class="scroll"><div class="grid" id="inv"></div></div>
         </div>
         <div class="box">
-          <div class="hd"><h3>Выбрать скин</h3>
+          <div class="hd"><button class="shopbtn" id="shopBtn" title="Магазин">🛒</button><h3 id="catTitle">Выбрать скин</h3>
             <input class="s" id="q" placeholder="Поиск">
             <input id="pFrom" type="number" placeholder="от">
             <input id="pTo" type="number" placeholder="до">
@@ -415,7 +420,7 @@ const fmt=n=>Math.round(n).toLocaleString('ru-RU');
 const fmt2=n=>n.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
 function card(it,opt={}){
   return `<div class="card ${opt.sel?'sel':''}" style="--rc:${RAR[it.r][1]}" ${opt.attr||''} title="${it.w} | ${it.n} (${RAR[it.r][0]})">
-    ${opt.sell?`<span class="sell" data-sell="${opt.sell}">Продать</span>`:''}
+    ${opt.sell?`<span class="sell" data-sell="${opt.sell}">Продать</span>`:''}${opt.buy?`<span class="buy">Купить</span>`:''}
     <span class="wr">${it.q}</span>
     <div class="pr">${fmt(it.p)} <span class="coin"></span></div>${art(it)}
     <div class="nm">${it.n}</div><div class="wp">${it.w}</div></div>`;
@@ -506,14 +511,20 @@ function renderCat(){
   const q=$('#q').value.toLowerCase(),f=+$('#pFrom').value||0,t=+$('#pTo').value||Infinity,so=$('#sort').value;
   let l=ITEMS.filter(i=>(i.w+' '+i.n).toLowerCase().includes(q)&&i.p>=f&&i.p<=t);
   l.sort((a,b)=>so==='d'?b.p-a.p:a.p-b.p);
-  $('#cat').innerHTML=l.map(i=>card(i,{sel:target&&target.id===i.id,attr:`data-cat="${i.id}"`})).join('');
+  $('#cat').innerHTML=l.map(i=>shop?card(i,{buy:1,attr:`data-cat="${i.id}"`}).replace('class="card ','class="card '+(i.p>S.balance?'poor ':'')):card(i,{sel:target&&target.id===i.id,attr:`data-cat="${i.id}"`})).join('');
+  $('#catTitle').textContent=shop?'Магазин':'Выбрать скин';$('#shopBtn').classList.toggle('on',shop);$('#shopBtn').title=shop?'Назад к выбору цели':'Магазин';
 }
 ['#q','#pFrom','#pTo','#sort'].forEach(s=>$(s).addEventListener('input',renderCat));
 $('#balRange').oninput=e=>{balUse=+e.target.value;renderUp()};
 $('#inv').onclick=e=>{if(spinning)return;const s=e.target.closest('[data-sell]');
   if(s){sell(+s.dataset.sell);return}
   const c=e.target.closest('[data-inv]');if(!c)return;const u=+c.dataset.inv;selInv.has(u)?selInv.delete(u):selInv.add(u);renderUp()};
-$('#cat').onclick=e=>{if(spinning)return;const c=e.target.closest('[data-cat]');if(!c)return;target=ITEMS[+c.dataset.cat];renderUp()};
+let shop=false;
+$('#shopBtn').onclick=()=>{shop=!shop;renderCat()};
+$('#cat').onclick=e=>{if(spinning)return;const c=e.target.closest('[data-cat]');if(!c)return;const it=ITEMS[+c.dataset.cat];
+  if(shop){if(it.p>S.balance){toast('Не хватает баланса','l');return}
+    S.balance-=it.p;addItem(it.id);save();toast(`Куплено: ${it.w} | ${it.n} за ${fmt(it.p)} <span class="coin"></span>`,'w');renderUp();return}
+  target=it;renderUp()};
 function sell(u){const i=S.inv.findIndex(x=>x.u===u);if(i<0)return;const it=ITEMS[S.inv[i].id];S.balance+=it.p;S.inv.splice(i,1);selInv.delete(u);save();toast(`Продано: ${it.n} за ${fmt(it.p)} <span class="coin"></span>`);renderUp()}
 $('#sellAll').onclick=()=>{if(spinning||!S.inv.length)return;const v=S.inv.reduce((a,x)=>a+ITEMS[x.id].p,0);S.balance+=v;S.inv=[];selInv.clear();save();toast(`Всё продано за ${fmt(v)} <span class="coin"></span>`);renderUp()};
 $('#mults').onclick=e=>{const b=e.target.closest('button');if(!b||spinning)return;const s=stakeVal();if(s<=0){toast('Сначала выбери ставку');return}
